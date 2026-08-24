@@ -21,25 +21,29 @@ new release + a matching pin bump there.** See `../ha-solaredge-one/CLAUDE.md`.
 
 ## Dev environment
 
-One shared test venv serves **both** repos and lives **here**:
-
-```
-/Users/catoconn/Workspace/Personal/solaredge-v2/.venv-test   # Python 3.13
-```
-
-It has this library installed **editable** (`pip install -e .`) alongside
-`homeassistant` + `pytest-homeassistant-custom-component` (the integration tests
-share it). After changing library source, editable install means no reinstall is
-needed for tests here; but if you bump the version, re-run `pip install -e .` so
-dist metadata matches the integration's manifest pin.
+Bootstrap a local venv from a fresh clone with:
 
 ```bash
-VENV=/Users/catoconn/Workspace/Personal/solaredge-v2/.venv-test/bin
-
-$VENV/python -m pytest              # library tests (from this repo root)
-$VENV/ruff check src tests
-$VENV/mypy src                      # mypy is configured strict
+scripts/bootstrap.sh          # creates ./.venv (gitignored), Python 3.13 default
 ```
+
+This installs the library **editable** with dev extras (`pip install -e ".[dev]"`
+→ pytest, pytest-asyncio, mypy, ruff). The library itself only needs Python 3.11+;
+default to 3.13 (`PYTHON=` to override) if you also run the integration tests.
+Because the install is editable, source edits need no reinstall — but after a
+**version bump** re-run `pip install -e .` so dist metadata matches the
+integration's `manifest.json` pin.
+
+```bash
+.venv/bin/python -m pytest         # library tests (from this repo root)
+.venv/bin/ruff check src tests
+.venv/bin/mypy src                 # mypy is configured strict
+```
+
+> On the original maintainer's machine a **shared** venv at `./.venv-test` serves
+> both repos (it additionally has Home Assistant installed so the integration
+> tests can run against this library editable). The bootstrap `./.venv` is the
+> portable equivalent for library-only work — use whichever exists.
 
 `pyproject.toml`: ruff `line-length = 100`, `[tool.mypy] strict = true`,
 `requires-python = ">=3.11"` (runtime), only runtime dep is `aiohttp>=3.9`. CI
