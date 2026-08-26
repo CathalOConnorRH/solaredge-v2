@@ -12,6 +12,7 @@ from .const import (
     DEFAULT_TIMEOUT,
     HEADER_ACCOUNT_KEY,
     HEADER_API_KEY,
+    RESOLUTION_TOTAL,
 )
 from .exceptions import (
     SolarEdgeApiError,
@@ -22,10 +23,12 @@ from .exceptions import (
 )
 from .models import (
     Device,
+    EnvironmentalBenefits,
     Site,
     SiteOverview,
     TimeSeries,
     parse_device_list,
+    parse_site,
     parse_site_list,
 )
 from .ratelimit import CreditLedger, RateLimit
@@ -137,6 +140,10 @@ class SolarEdgeOneClient:
         """``GET /sites/{id}/overview`` — cumulative production/consumption."""
         return SiteOverview.from_dict(await self._get(f"/sites/{site_id}/overview"))
 
+    async def get_site_details(self, site_id: int | str) -> Site:
+        """``GET /sites/{id}`` — metadata for a single site (name, peak power…)."""
+        return parse_site(await self._get(f"/sites/{site_id}"))
+
     async def get_devices(self, site_id: int | str) -> list[Device]:
         """``GET /sites/{id}/devices`` — site inventory."""
         return parse_device_list(await self._get(f"/sites/{site_id}/devices"))
@@ -157,6 +164,26 @@ class SolarEdgeOneClient:
         }
         return TimeSeries.from_dict(await self._get(f"/sites/{site_id}/energy", params))
 
+    async def get_lifetime_energy(
+        self,
+        site_id: int | str,
+        *,
+        date_from: str | datetime | None = None,
+        date_to: str | datetime | None = None,
+    ) -> TimeSeries:
+        """Lifetime (or ranged) energy via ``/energy`` with ``resolution=TOTAL``.
+
+        v2 collapses the range to a single bucket; read ``.total`` for the Wh sum.
+        Pass ``date_from`` (e.g. the install date) for a true lifetime figure —
+        omitting it lets the API apply its default window.
+        """
+        return await self.get_energy(
+            site_id,
+            date_from=date_from,
+            date_to=date_to,
+            resolution=RESOLUTION_TOTAL,
+        )
+
     async def get_power(
         self,
         site_id: int | str,
@@ -175,16 +202,57 @@ class SolarEdgeOneClient:
 
     async def get_alerts(self, site_id: int | str) -> list[dict[str, Any]]:
         """``GET /sites/{id}/alerts`` — returns a list (empty when none)."""
-        data = await self._get(f"/sites/{site_id}/alerts")
-        if isinstance(data, dict):
-            for key in ("alerts", "alert", "data", "items"):
-                value = data.get(key)
-                if isinstance(value, list):
-                    return cast("list[dict[str, Any]]", value)
-            return []
-        if isinstance(data, list):
-            return cast("list[dict[str, Any]]", data)
-        return []
+        return _extract_list(await self._get(f"/sites/{site_id}/alerts"))
+
+    async def get_fleet_alerts(self) -> list[dict[str, Any]]:
+        """``GET /alerts`` — fleet-wide alerts across every accessible site."""
+        return _extract_list(await self._get("/alerts"))
+
+    async def get_environmental_benefits(
+        self, site_id: int | str, *, unit: str | None = None
+    ) -> EnvironmentalBenefits:
+        """``GET /sites/{id}/environmental-benefits`` — CO2 saved + EV miles.
+
+        ``unit`` selects ``METRIC`` or ``IMPERIAL`` (v2 renamed v1's ``systemUnits``).
+        """
+        data = await self._get(
+            f"/sites/{site_id}/environmental-benefits", {"unit": unit}
+        )
+        return EnvironmentalBenefits.from_dict(data if isinstance(data, dict) else {})
+
+    async def get_storage_telemetry(
+        self,
+        site_id: int | str,
+        serial_numbers: str | list[str] | None = None,
+        *,
+        date_from: str | datetime | None = None,
+        date_to: str | datetime | None = None,
+        resolution: str | None = None,
+    ) -> dict[str, Any]:
+        """``GET /sites/{id}/storage/telemetry`` — battery telemetry (raw JSON).
+
+        Site-wide by default; pass ``serial_numbers`` (comma-separated string or
+        list) to target specific batteries via
+        ``/sites/{id}/storage/{serials}/telemetry``. Returns the raw payload —
+        the six storage metrics (charge/discharge power+energy, remaining energy,
+        state of energy) are exposed under a per-metric shape that has not yet
+        been captured live, so no typed model is imposed. Requires a battery on
+        the site.
+        """
+        if isinstance(serial_numbers, list):
+            serial_numbers = ",".join(serial_numbers)
+        path = (
+            f"/sites/{site_id}/storage/{serial_numbers}/telemetry"
+            if serial_numbers
+            else f"/sites/{site_id}/storage/telemetry"
+        )
+        params = {
+            "from": _fmt_time(date_from),
+            "to": _fmt_time(date_to),
+            "resolution": resolution,
+        }
+        data = await self._get(path, params)
+        return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
 
     async def validate(self) -> list[Site]:
         """Cheapest credential check for a config flow: list sites.
@@ -192,6 +260,19 @@ class SolarEdgeOneClient:
         Raises ``SolarEdgeAuthError`` on bad credentials.
         """
         return await self.get_sites()
+
+
+def _extract_list(data: Any) -> list[dict[str, Any]]:
+    """Pull the list of items out of an alerts-style response (empty when none)."""
+    if isinstance(data, dict):
+        for key in ("alerts", "alert", "data", "items"):
+            value = data.get(key)
+            if isinstance(value, list):
+                return cast("list[dict[str, Any]]", value)
+        return []
+    if isinstance(data, list):
+        return cast("list[dict[str, Any]]", data)
+    return []
 
 
 def _parse_retry_after(value: str | None) -> float | None:

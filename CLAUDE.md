@@ -52,9 +52,13 @@ integration's `manifest.json` pin.
 ## Code map (`src/aiosolaredge_one/`)
 
 - `client.py` — `SolarEdgeOneClient`: async methods `get_sites`,
-  `get_site_overview`, `get_devices`, `get_energy`, `get_power`, `get_alerts`,
-  `validate`. Header auth (`X-API-Key`, optional `X-Account-Key`). `get_energy`
-  takes `date_from` / `date_to` / `resolution` (sent as `from`/`to`/`resolution`).
+  `get_site_details`, `get_site_overview`, `get_devices`, `get_energy`,
+  `get_lifetime_energy`, `get_power`, `get_alerts`, `get_fleet_alerts`,
+  `get_environmental_benefits`, `get_storage_telemetry`, `validate`. Header auth
+  (`X-API-Key`, optional `X-Account-Key`). `get_energy` takes `date_from` /
+  `date_to` / `resolution` (sent as `from`/`to`/`resolution`). 11 of the 43 v2
+  endpoints are wrapped — see the `solaredge-v2-endpoint-inventory` memory for the
+  full gap list (inverter/meter per-metric telemetry, performance, Advanced tier).
 - `models.py` — typed dataclasses: `Site`, `SiteOverview` (+ `ProductionOverview`,
   `ConsumptionOverview`), `Device`, `TimeSeries`/`TimeValue`. `TimeSeries` has
   `.total` (sum of non-null), `.latest_value`, `.non_null_values`, `.values`.
@@ -76,15 +80,19 @@ integration's `manifest.json` pin.
   `/sites/{id}/alerts`.
 - `/overview` returns **TODAY's** running Wh totals, **not lifetime** (resets at
   midnight). No lifetime field exists there.
-- `/energy` accepts resolutions **DAY / WEEK / MONTH / YEAR** (HOUR → 400); the
-  sum is identical across resolutions. A YEAR call from install date returns one
-  bucket per year → **sum = lifetime**, current-year bucket = year-to-date.
+- `/energy` accepts resolutions **QUARTER_HOUR / HOUR / DAY / WEEK / MONTH /
+  YEAR / TOTAL** per the migration docs (min QUARTER_HOUR); the sum is identical
+  across resolutions. **Lifetime = `resolution=TOTAL`** (use `get_lifetime_energy`);
+  the old YEAR-from-install trick still works but TOTAL is the documented path.
+  (Note: an early live capture saw HOUR → 400 — may be tier/param dependent.)
 - `/power` is a QUARTER_HOUR time series; current power = last non-null point.
 - Rate limit: per-minute only in headers (`x-ratelimit-*-minute`); the monthly
   ~2000-credit quota is **not** in headers → track locally (`CreditLedger`).
 - `/sites` shape: `{"sites":{"count":N,"site":[{siteId,...}]}}` (singular `site`).
-- 404 (paths not yet available): `/storage`, `/battery`, `/powerFlow`,
-  `/environmentalBenefits`, `/summary`.
+- Earlier 404s (`/storage`, `/battery`, `/powerFlow`, `/environmentalBenefits`)
+  were **wrong paths, not missing features**: real paths are hyphenated with a
+  `/telemetry` suffix — `/storage/telemetry`, `/power-flow` (Advanced tier only),
+  `/environmental-benefits`. `/summary` has no v2 equivalent.
 
 ## Testing conventions
 

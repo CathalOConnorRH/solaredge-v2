@@ -72,6 +72,14 @@ def parse_site_list(data: dict[str, Any]) -> list[Site]:
     return [Site.from_dict(item) for item in items if isinstance(item, dict)]
 
 
+def parse_site(data: dict[str, Any]) -> Site:
+    """Parse a single site from ``GET /sites/{id}`` (may be wrapped in ``site``)."""
+    inner = data.get("site")
+    if isinstance(inner, dict):
+        data = inner
+    return Site.from_dict(data)
+
+
 @dataclass(slots=True)
 class ProductionOverview:
     total: float | None = None
@@ -127,6 +135,30 @@ class SiteOverview:
             site_id=_as_int(data.get("siteId")),
             production=ProductionOverview.from_dict(data.get("production")),
             consumption=ConsumptionOverview.from_dict(data.get("consumption")),
+            raw=data,
+        )
+
+
+@dataclass(slots=True)
+class EnvironmentalBenefits:
+    """Response of ``GET /sites/{id}/environmental-benefits``.
+
+    v2 trimmed the v1 field set: only ``co2Emissions`` and ``evMiles`` remain
+    (``gasEmissionSaved``, ``treesPlanted``, ``lightBulbs`` are gone). Field names
+    are best-effort from the migration docs; ``raw`` preserves the full payload.
+    """
+
+    co2_emissions: float | None = None
+    ev_miles: float | None = None
+    unit: str | None = None
+    raw: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> EnvironmentalBenefits:
+        return cls(
+            co2_emissions=_as_float(data.get("co2Emissions")),
+            ev_miles=_as_float(data.get("evMiles")),
+            unit=data.get("unit"),
             raw=data,
         )
 

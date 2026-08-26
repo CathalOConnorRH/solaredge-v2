@@ -89,6 +89,71 @@ async def test_get_alerts_empty(session: FakeSession) -> None:
     assert alerts == []
 
 
+async def test_get_site_details(session: FakeSession) -> None:
+    payload = {"siteId": SITE_ID, "name": "Home", "peakPower": 5.68,
+               "activationStatus": "Active"}
+    session.add(f"/sites/{SITE_ID}", payload=payload)
+    site = await make_client(session).get_site_details(SITE_ID)
+
+    assert site.site_id == SITE_ID
+    assert site.name == "Home"
+    assert site.peak_power == 5.68
+    assert site.is_active is True
+
+
+async def test_get_site_details_wrapped(session: FakeSession) -> None:
+    # Some responses nest the object under a "site" key — parse_site unwraps it.
+    session.add(f"/sites/{SITE_ID}", payload={"site": {"siteId": SITE_ID, "name": "X"}})
+    site = await make_client(session).get_site_details(SITE_ID)
+
+    assert site.site_id == SITE_ID
+    assert site.name == "X"
+
+
+async def test_get_lifetime_energy_sends_total(session: FakeSession) -> None:
+    session.add(f"/sites/{SITE_ID}/energy", payload=load_fixture("energy"))
+    client = make_client(session)
+    await client.get_lifetime_energy(SITE_ID, date_from="2020-01-01T00:00:00")
+
+    sent = session.requests[-1]["params"]
+    assert sent["resolution"] == "TOTAL"
+    assert sent["from"] == "2020-01-01T00:00:00"
+
+
+async def test_get_fleet_alerts(session: FakeSession) -> None:
+    session.add("/alerts", payload={"alerts": [{"id": 1}, {"id": 2}]})
+    alerts = await make_client(session).get_fleet_alerts()
+
+    assert [a["id"] for a in alerts] == [1, 2]
+
+
+async def test_get_environmental_benefits(session: FakeSession) -> None:
+    payload = {"co2Emissions": 1234.5, "evMiles": 42.0, "unit": "METRIC"}
+    session.add(f"/sites/{SITE_ID}/environmental-benefits", payload=payload)
+    benefits = await make_client(session).get_environmental_benefits(
+        SITE_ID, unit="METRIC"
+    )
+
+    assert benefits.co2_emissions == 1234.5
+    assert benefits.ev_miles == 42.0
+    assert benefits.unit == "METRIC"
+    assert session.requests[-1]["params"] == {"unit": "METRIC"}
+
+
+async def test_get_storage_telemetry_site_wide(session: FakeSession) -> None:
+    session.add(f"/sites/{SITE_ID}/storage/telemetry", payload={"values": []})
+    data = await make_client(session).get_storage_telemetry(SITE_ID)
+
+    assert data == {"values": []}
+
+
+async def test_get_storage_telemetry_specific_serials(session: FakeSession) -> None:
+    session.add(f"/sites/{SITE_ID}/storage/SN1,SN2/telemetry", payload={"ok": True})
+    data = await make_client(session).get_storage_telemetry(SITE_ID, ["SN1", "SN2"])
+
+    assert data == {"ok": True}
+
+
 async def test_rate_limit_parsed(session: FakeSession) -> None:
     session.add("/sites", payload=load_fixture("sites"), headers=RATE_HEADERS)
     client = make_client(session)

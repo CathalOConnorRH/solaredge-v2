@@ -14,7 +14,12 @@ from .const import (
     DEFAULT_BASE_URL,
     RESOLUTION_DAY,
     RESOLUTION_HOUR,
+    RESOLUTION_MONTH,
     RESOLUTION_QUARTER_HOUR,
+    RESOLUTION_TOTAL,
+    RESOLUTION_WEEK,
+    RESOLUTION_YEAR,
+    RESOLUTIONS,
 )
 from .exceptions import (
     SolarEdgeApiError,
@@ -27,6 +32,7 @@ from .exceptions import (
 from .models import (
     ConsumptionOverview,
     Device,
+    EnvironmentalBenefits,
     ProductionOverview,
     Site,
     SiteOverview,
@@ -35,7 +41,7 @@ from .models import (
 )
 from .ratelimit import CreditLedger, RateLimit
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "SolarEdgeOneClient",
@@ -47,7 +53,12 @@ __all__ = [
     "DEFAULT_BASE_URL",
     "RESOLUTION_DAY",
     "RESOLUTION_HOUR",
+    "RESOLUTION_MONTH",
     "RESOLUTION_QUARTER_HOUR",
+    "RESOLUTION_TOTAL",
+    "RESOLUTION_WEEK",
+    "RESOLUTION_YEAR",
+    "RESOLUTIONS",
     "SolarEdgeError",
     "SolarEdgeApiError",
     "SolarEdgeAuthError",
@@ -59,6 +70,7 @@ __all__ = [
     "ProductionOverview",
     "ConsumptionOverview",
     "Device",
+    "EnvironmentalBenefits",
     "TimeSeries",
     "TimeValue",
     "CreditLedger",

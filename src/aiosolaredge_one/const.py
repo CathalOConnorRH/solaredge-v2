@@ -14,7 +14,24 @@ HEADER_ACCOUNT_KEY = "X-Account-Key"
 HEADER_RATELIMIT_LIMIT = "x-ratelimit-limit-minute"
 HEADER_RATELIMIT_REMAINING = "x-ratelimit-remaining-minute"
 
-# Resolutions accepted by the time-series endpoints (values seen: QUARTER_HOUR).
+# Resolutions accepted by the time-series endpoints. Per the v1->v2 migration
+# docs, /energy accepts the full set below (minimum QUARTER_HOUR); TOTAL collapses
+# the range to a single bucket (use it for lifetime/range totals). /power supports
+# the sub-daily resolutions.
 RESOLUTION_QUARTER_HOUR = "QUARTER_HOUR"
 RESOLUTION_HOUR = "HOUR"
 RESOLUTION_DAY = "DAY"
+RESOLUTION_WEEK = "WEEK"
+RESOLUTION_MONTH = "MONTH"
+RESOLUTION_YEAR = "YEAR"
+RESOLUTION_TOTAL = "TOTAL"
+
+RESOLUTIONS = (
+    RESOLUTION_QUARTER_HOUR,
+    RESOLUTION_HOUR,
+    RESOLUTION_DAY,
+    RESOLUTION_WEEK,
+    RESOLUTION_MONTH,
+    RESOLUTION_YEAR,
+    RESOLUTION_TOTAL,
+)
